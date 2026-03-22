@@ -102,22 +102,6 @@ Total prediksi benar: **1,817 / 2,000** (Akurasi: 0.9085)
 | 10 | LTI Ratio | 0.0136 |
 
 Faktor perilaku pembayaran (tunggakan, riwayat kredit) dan rasio keuangan (DTI, LTI) memiliki daya prediksi jauh lebih tinggi dibandingkan faktor demografis.
-
----
-
-## Struktur File
-
-```
-├── CLVS_ML_Credit_Scoring_lab.ipynb   # Notebook utama (Google Colab)
-├── Artikel_Riset_Credit_Scoring_ML.docx # Artikel riset lengkap
-├── README.md                           # Dokumentasi proyek
-├── synthetic_credit_10k.csv            # Dataset sintetik (generated)
-└── models_xgb/
-    ├── xgb_credit.ubj                  # Model XGBoost tersimpan
-    ├── xgb_encoders.joblib             # Encoders fitur kategorikal
-    └── xgb_target_encoder.joblib       # Encoder variabel target
-```
-
 ---
 
 ## Cara Menjalankan
