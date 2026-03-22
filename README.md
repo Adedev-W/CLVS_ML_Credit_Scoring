@@ -1,221 +1,179 @@
-# CLVS-ML: Sistem Penilaian Kredit berbasis Machine Learning
+# CLVS-ML: Analisis Komparatif Algoritma Machine Learning untuk Sistem Penilaian Kredit Konsumer
 
-**Analisis Komparatif Algoritma ML untuk Klasifikasi Risiko Pinjaman Konsumer Indonesia**
-
----
-
-## Tentang Riset Ini
-
-Proyek ini adalah riset pribadi yang mengeksplorasi penerapan *machine learning* untuk masalah **credit scoring** di konteks pinjaman konsumer Indonesia. Ide dasarnya sederhana: bisakah kita membangun model yang mampu mengklasifikasikan risiko kredit nasabah secara otomatis, hanya dari data demografis dan keuangan mereka?
-
-Karena data kredit nyata sulit didapat (dan sensitif), saya membuat **dataset sintetik 10.000 nasabah** dengan distribusi statistik yang realistis — didesain agar mencerminkan pola kredit yang sesungguhnya terjadi di perbankan Indonesia.
+Eksperimen komparatif tiga algoritma machine learning — **Logistic Regression**, **Random Forest**, dan **XGBoost** — untuk klasifikasi multiclass penilaian kredit konsumer menggunakan data sintetik 10.000 nasabah Indonesia.
 
 ---
 
-## Pertanyaan Riset
+## Ringkasan Hasil
 
-1. Seberapa akurat model ML dalam mengklasifikasikan risiko kredit ke 3 kelas (Lancar / Perhatian / Macet)?
-2. Algoritma mana yang paling efektif untuk data tabular jenis ini — Logistic Regression, Random Forest, atau XGBoost?
-3. Fitur apa yang paling menentukan keputusan kredit menurut model?
+| Model | Accuracy | F1-Macro | Precision-Macro | Recall-Macro | Waktu Training |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Logistic Regression | 0.9085 | 0.8851 | 0.9020 | 0.8706 | 0.3s |
+| Random Forest | 0.9080 | 0.8813 | **0.9146** | 0.8566 | 3.4s |
+| **XGBoost** | **0.9085** | **0.8907** | 0.9069 | **0.8768** | 3.6s |
+
+XGBoost memberikan performa terbaik pada Accuracy, F1-Macro, dan Recall-Macro, sementara Random Forest unggul pada Precision-Macro.
 
 ---
 
-## Dataset Sintetik
+## Deskripsi Proyek
 
-Dataset dibuat dari nol dengan korelasi realistis yang ditanamkan secara eksplisit:
+### Latar Belakang
 
-| Properti | Nilai |
+Penilaian kredit (*credit scoring*) merupakan proses evaluasi statistik yang digunakan lembaga keuangan untuk menilai kelayakan kredit calon debitur. Penelitian ini membandingkan kinerja tiga algoritma machine learning dalam memprediksi kualitas kredit nasabah ke dalam tiga kelas berdasarkan klasifikasi OJK:
+
+| Kelas | Deskripsi | Distribusi |
+|---|---|:---:|
+| **Lancar** | Pembayaran tepat waktu, tidak ada tunggakan signifikan | 55.7% (5,573) |
+| **Perhatian** | Tunggakan 1–90 hari, memerlukan pemantauan intensif | 34.7% (3,473) |
+| **Macet** | Tunggakan >90 hari, risiko gagal bayar tinggi | 9.5% (954) |
+
+### Dataset
+
+Dataset sintetik yang dihasilkan secara algoritmik dengan distribusi statistik yang merepresentasikan karakteristik kredit nasabah Indonesia:
+
+- **10.000 observasi** dengan **36 fitur prediktor** dan **1 variabel target**
+- **23 fitur numerik** + **13 fitur kategorikal**
+- Tidak ada missing values — dataset bersih
+- Total memori: 9,226.9 KB
+
+Fitur dikelompokkan ke dalam tiga kategori:
+
+- **Demografis** — usia (21–65 tahun), jenis kelamin, status pernikahan, pendidikan (SMA/Diploma/S1/S2), jumlah tanggungan, lokasi (urban/rural)
+- **Finansial** — penghasilan bulanan (rata-rata Rp 6.68 juta), DTI ratio, LTI ratio, saldo tabungan, nilai aset, angsuran bulanan
+- **Riwayat Kredit** — jumlah kredit sebelumnya, jumlah tunggakan, hari tunggakan terlama, riwayat kredit (Baik/Cukup/Buruk)
+
+---
+
+## Metodologi
+
+### Pra-pemrosesan Data
+
+1. **LabelEncoder** untuk 13 fitur kategorikal → integer encoding
+2. **LabelEncoder** untuk target → integer encoding (Lancar=0, Macet=1, Perhatian=2)
+3. **Stratified Train/Test Split** 80/20 → 8,000 training, 2,000 testing
+4. **StandardScaler** khusus untuk Logistic Regression saja (model tree-based tidak memerlukan scaling)
+
+### Konfigurasi Model
+
+| Model | Parameter Kunci |
 |---|---|
-| Jumlah baris | 10.000 nasabah |
-| Jumlah fitur | 36 kolom (23 numerik + 13 kategorikal) |
-| Target | `status_kredit` (3 kelas) |
-| Seed | 42 (reproducible) |
+| **Logistic Regression** | `max_iter=1000`, `solver=lbfgs`, `multi_class=auto` + StandardScaler |
+| **Random Forest** | `n_estimators=200`, `max_depth=8`, `n_jobs=-1` |
+| **XGBoost** | `n_estimators=500`, `max_depth=6`, `learning_rate=0.05`, `subsample=0.8`, `colsample_bytree=0.8`, `reg_alpha=0.1`, `reg_lambda=1.0`, `early_stopping_rounds=20` |
 
-### Distribusi Kelas Target
-
-| Kelas | Proporsi | Deskripsi |
-|---|---|---|
-| **Lancar** | ~55% | Bayar tepat waktu, tidak ada tunggakan |
-| **Perhatian** | ~35% | Tunggakan 1–90 hari |
-| **Macet** | ~10% | Tunggakan >90 hari, risiko gagal bayar |
-
-### Korelasi yang Ditanamkan (by design)
-
-- DTI tinggi + riwayat buruk → cenderung **Macet**
-- Penghasilan rendah + tunggakan banyak → cenderung **Macet**
-- Tabungan tinggi + riwayat baik → cenderung **Lancar**
-
-Ini bukan kebetulan — distribusi per segmen dirancang eksplisit agar model punya "sesuatu untuk dipelajari".
+XGBoost menggunakan early stopping dan berhenti pada **iterasi ke-172** dari 500, dengan best validation mlogloss **0.24000**.
 
 ---
 
-## Model yang Dibandingkan
+## Hasil Detail
 
-| Model | Preprocessing | Catatan |
-|---|---|---|
-| Logistic Regression | StandardScaler wajib | Baseline klasik, interpretable |
-| Random Forest | Tidak perlu scaling | Ensemble tree, robust terhadap outlier |
-| **XGBoost** | Tidak perlu scaling | *State-of-the-art* untuk data tabular |
+### F1-Score per Kelas
+
+| Model | Lancar | Macet | Perhatian |
+|---|:---:|:---:|:---:|
+| Logistic Regression | 0.9436 | 0.8444 | 0.8672 |
+| Random Forest | 0.9439 | 0.8328 | 0.8673 |
+| XGBoost | 0.9404 | **0.8643** | **0.8675** |
+
+### Confusion Matrix — XGBoost
+
+| Aktual \ Prediksi | Lancar | Macet | Perhatian |
+|---|:---:|:---:|:---:|
+| **Lancar** | 1,065 | 0 | 49 |
+| **Macet** | 1 | 156 | 34 |
+| **Perhatian** | 85 | 14 | 596 |
+
+Total prediksi benar: **1,817 / 2,000** (Akurasi: 0.9085)
+
+### Top 10 Feature Importance — XGBoost (Gain)
+
+| Rank | Fitur | Importance |
+|:---:|---|:---:|
+| 1 | DTI Ratio | 0.2179 |
+| 2 | Hari Tunggakan Terlama | 0.1674 |
+| 3 | Jumlah Tunggakan | 0.0924 |
+| 4 | Riwayat Kredit | 0.0689 |
+| 5 | Saldo Tabungan | 0.0336 |
+| 6 | Penghasilan Bulanan | 0.0320 |
+| 7 | Total Penghasilan | 0.0192 |
+| 8 | Kredit Sebelumnya | 0.0172 |
+| 9 | Level Pekerjaan | 0.0137 |
+| 10 | LTI Ratio | 0.0136 |
+
+Faktor perilaku pembayaran (tunggakan, riwayat kredit) dan rasio keuangan (DTI, LTI) memiliki daya prediksi jauh lebih tinggi dibandingkan faktor demografis.
 
 ---
 
-## Struktur Proyek
+## Struktur File
 
 ```
-ClVS-ML-pinjaman/
-│
-├── CLVS_ML_Credit_Scoring.ipynb   ← Notebook utama (Google Colab)
-├── README.md                       ← File ini
-│
-├── credit_scoring/
-│   ├── generate_synthetic_10k.py  ← Generator dataset sintetik
-│   └── train_xgboost.py           ← Pipeline training standalone
-│
-├── synthetic_credit_10k.csv        ← Dataset (digenerate saat run Cell 5)
-│
-└── models_xgb/                     ← Artefak model (digenerate saat run Cell 19)
-    ├── xgb_credit.ubj
-    ├── xgb_encoders.joblib
-    └── xgb_target_encoder.joblib
+├── CLVS_ML_Credit_Scoring_lab.ipynb   # Notebook utama (Google Colab)
+├── Artikel_Riset_Credit_Scoring_ML.docx # Artikel riset lengkap
+├── README.md                           # Dokumentasi proyek
+├── synthetic_credit_10k.csv            # Dataset sintetik (generated)
+└── models_xgb/
+    ├── xgb_credit.ubj                  # Model XGBoost tersimpan
+    ├── xgb_encoders.joblib             # Encoders fitur kategorikal
+    └── xgb_target_encoder.joblib       # Encoder variabel target
 ```
 
 ---
 
 ## Cara Menjalankan
 
-### Di Google Colab (direkomendasikan)
+### Prasyarat
 
-1. Upload `CLVS_ML_Credit_Scoring.ipynb` ke Google Colab
-2. Jalankan semua cell dari atas ke bawah (**Runtime → Run all**)
-3. Cell 2 akan menginstall dependensi yang belum ada secara otomatis
-4. Tidak perlu upload file apapun — dataset digenerate langsung di Cell 5
+- Python 3.10+
+- Google Colab (direkomendasikan) atau Jupyter Notebook
 
-### Di Lokal
+### Instalasi Dependensi
 
 ```bash
-# Clone / download proyek
-cd ClVS-ML-pinjaman
-
-# Install dependensi
-pip install xgboost altair scikit-learn pandas numpy joblib
-
-# Jalankan generator data dulu
-python credit_scoring/generate_synthetic_10k.py
-
-# Lalu training
-python credit_scoring/train_xgboost.py
+pip install numpy pandas scikit-learn xgboost altair vegafusion vl-convert-python joblib
 ```
+
+### Menjalankan Notebook
+
+1. Buka `CLVS_ML_Credit_Scoring_lab.ipynb` di Google Colab
+2. Jalankan semua cell secara berurutan — notebook akan:
+   - Generate dataset sintetik 10,000 nasabah
+   - Melakukan eksplorasi data (EDA) dengan visualisasi Altair
+   - Melatih tiga model (LR, RF, XGBoost)
+   - Menampilkan benchmarking dan evaluasi detail
+   - Menyimpan artefak model ke folder `models_xgb/`
 
 ---
 
-## Dependensi
+## Dependensi Utama
 
 | Library | Versi | Kegunaan |
 |---|---|---|
-| `xgboost` | 2.x | Model utama |
-| `scikit-learn` | 1.6.1 | LR, RF, preprocessing, metrik |
-| `pandas` | 2.2.x | Manipulasi data |
-| `numpy` | — | Komputasi numerik |
-| `altair` | ≥5.0 | Visualisasi riset |
-| `joblib` | — | Simpan/load model |
+| numpy | 2.0.2 | Komputasi numerik |
+| pandas | 2.2.2 | Manipulasi data |
+| scikit-learn | — | Preprocessing, LR, RF, metrik evaluasi |
+| xgboost | 3.2.0 | Model XGBoost |
+| altair | 5.5.0 | Visualisasi interaktif |
+| joblib | — | Serialisasi model |
 
 ---
 
-## Isi Notebook (19 Cells)
+## Temuan Utama
 
-| Cell | Konten |
-|---|---|
-| 1 | Cover, abstrak, metadata |
-| 2 | Instalasi library |
-| 3 | Import, konfigurasi, tema Altair |
-| 4 | Pendahuluan & latar belakang |
-| 5 | **Generasi data sintetik** → `synthetic_credit_10k.csv` |
-| 6 | Header eksplorasi dataset |
-| 7 | Statistik deskriptif + Chart 1 (donut) + Chart 2 (heatmap korelasi) |
-| 8 | Chart 3 (boxplot DTI) + Chart 4 (bar riwayat) + Chart 5 (scatter) |
-| 9 | Header pra-pemrosesan |
-| 10 | Encoding + Train/Test Split + Chart 6 |
-| 11 | Header pelatihan |
-| 12 | **Training XGBoost** (early stopping) |
-| 13 | **Training LR & RF** + tabel metrik |
-| 14 | Header benchmarking |
-| 15 | Chart 7 (grouped bar benchmarking) + Chart 8 (F1 heatmap) |
-| 16 | Evaluasi detail XGBoost + Chart 9 (confusion matrix) + Chart 10 (loss) |
-| 17 | Chart 11 (feature importance) |
-| 18 | Kesimpulan & interpretasi |
-| 19 | **Simpan artefak** ke `models_xgb/` |
+1. **Ketiga model mencapai akurasi >90%**, mengonfirmasi efektivitas machine learning untuk credit scoring
+2. **XGBoost unggul pada F1-Macro (0.8907)** — metrik paling relevan untuk klasifikasi imbalanced multiclass
+3. **Random Forest unggul pada Precision-Macro (0.9146)** — lebih konservatif dalam prediksi positif
+4. **DTI Ratio (21.79%)** menjadi fitur paling prediktif, diikuti Hari Tunggakan Terlama (16.74%)
+5. **Early stopping efektif** — XGBoost konvergen di iterasi 172/500, mencegah overfitting
 
 ---
 
-## Visualisasi yang Dihasilkan
+## Penulis
 
-| # | Chart | Tipe |
-|---|---|---|
-| 1 | Distribusi kelas target | Donut chart |
-| 2 | Korelasi fitur numerik | Heatmap |
-| 3 | Distribusi DTI per kelas | Boxplot |
-| 4 | Riwayat kredit per kelas | Grouped bar |
-| 5 | Penghasilan vs DTI | Scatter plot |
-| 6 | Distribusi train/test | Grouped bar |
-| 7 | Perbandingan semua model | Grouped bar |
-| 8 | F1-score per kelas per model | Heatmap |
-| 9 | Confusion matrix XGBoost | Heatmap + label |
-| 10 | Training loss per round | Line chart |
-| 11 | Top 20 feature importance | Horizontal bar |
-
----
-
-## Catatan Teknis
-
-### XGBoost 2.x — Breaking Changes
-
-Beberapa perubahan API penting yang sudah diperbaiki di notebook ini:
-
-```python
-# SALAH di XGBoost 2.x:
-XGBClassifier(use_label_encoder=False)           # parameter dihapus
-model.fit(..., callbacks=[EarlyStopping(...)])    # callbacks dihapus dari fit()
-model.fit(..., early_stopping_rounds=20)          # dipindah ke constructor
-
-# BENAR di XGBoost 2.x:
-XGBClassifier(early_stopping_rounds=20)           # di constructor
-model.fit(..., eval_set=[...], verbose=False)     # fit() hanya terima eval_set
-```
-
-### scikit-learn 1.6.x
-
-```python
-# SALAH di sklearn 1.6:
-LogisticRegression(multi_class='multinomial')    # parameter dihapus
-
-# BENAR — solver lbfgs handle multiclass secara default:
-LogisticRegression(max_iter=1000)
-```
-
----
-
-## Keterbatasan & Rencana ke Depan
-
-**Keterbatasan saat ini:**
-- Dataset sepenuhnya sintetik — perlu validasi dengan data nyata
-- Distribusi mungkin tidak merefleksikan kondisi pasar kredit terkini
-- Tidak ada feature engineering yang intensif
-- Belum ada hyperparameter tuning (grid/random search)
-
-**Yang bisa dikembangkan:**
-- [ ] Tambah SHAP values untuk interpretabilitas per-instance
-- [ ] Coba model tambahan: LightGBM, CatBoost
-- [ ] Implementasi oversampling (SMOTE) untuk kelas Macet yang minoritas
-- [ ] Hyperparameter tuning dengan Optuna
-- [ ] Validasi silang (cross-validation) yang lebih robust
-- [ ] Simulasi dengan data kredit publik (bila tersedia)
+**Ade Saputra** — 2026
 
 ---
 
 ## Lisensi
 
-Riset pribadi — bebas digunakan untuk referensi dan pembelajaran.
-
----
-
-*Dibuat dengan Python, XGBoost, scikit-learn, dan Altair.*
+Proyek ini dibuat untuk keperluan riset akademik.
